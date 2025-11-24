@@ -1,0 +1,28 @@
+# ---- xLSTM core (NeurIPS version, no Large 7B) ----
+xlstm
+
+# ---- IWSLT17 En–Zh data & tokenization ----
+datasets>=2.16
+sentencepiece>=0.1.99
+regex>=2023.10.3
+
+# ---- Config / utilities ----
+pyyaml>=6.0
+omegaconf>=2.3
+dacite>=1.8
+einops>=0.7
+
+# ---- Training helpers ----
+numpy==1.26.4
+tqdm>=4.66
+tensorboard==2.9.1
+
+# ---- Evaluation ----
+sacrebleu>=2.4
+
+# ---- Experiment tools ----
+pandas>=2.2
+matplotlib>=3.8
+seaborn>=0.13
+ipython
+jupyter
