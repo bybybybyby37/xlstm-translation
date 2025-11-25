@@ -2,7 +2,7 @@
 xlstm
 
 # ---- IWSLT17 En–Zh data & tokenization ----
-datasets>=2.16
+ddatasets==3.6.0
 sentencepiece>=0.1.99
 regex>=2023.10.3
 
