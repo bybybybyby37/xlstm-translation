@@ -30,6 +30,7 @@ python -m scripts.train_iwslt17_xlstm
   year = {2024},
   url = {https://arxiv.org/abs/2405.04517}, 
 }
+
 @article{beck:25xlstm7b,
   title = {{xLSTM 7B}: A Recurrent LLM for Fast and Efficient Inference},
   author = {Maximilian Beck and Korbinian Pöppel and Phillip Lippe and Richard Kurle and Patrick M. Blies and Günter Klambauer and Sebastian Böck and Sepp Hochreiter},
