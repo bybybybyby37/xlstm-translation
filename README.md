@@ -12,14 +12,22 @@ pip install torch==2.2.2+cu118 torchvision==0.17.2+cu118 torchaudio==2.2.2+cu118
 pip install -r requirements.txt
 ```
 
-## 2. Test Run
+## 3. Test Run
 Firstly activate the conda env
 ```
 conda activate xlstm
 ```
 Then run the training script (you can modify the hyperparameters)
+
 ```
-python -m scripts.train_iwslt17_xlstm
+# 1:0 Variant（mLSTM-only）
+python -m scripts.train_iwslt17_xlstm --config config/iwslt17_xlstm10.yaml --variant 10
+
+# 0:1 Variant（sLSTM-only）
+python -m scripts.train_iwslt17_xlstm --config config/iwslt17_xlstm01.yaml --variant 01
+
+# 1:1 Varivant（mLSTM + sLSTM）
+python -m scripts.train_iwslt17_xlstm --config config/iwslt17_xlstm11.yaml --variant 11
 ```
 
 ## Citation
