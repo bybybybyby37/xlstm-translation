@@ -1,0 +1,18 @@
+# config/iwslt17_xlstm10.yaml
+model:
+  num_blocks: 4
+  embedding_dim: 256
+
+  # mLSTM sub-block config
+  mlstm_block:
+    mlstm:
+      conv1d_kernel_size: 4
+      qkv_proj_blocksize: 4
+      num_heads: 4
+
+  # no sLSTM at all → 1:0
+  slstm_block: {}
+  slstm_at: []
+
+  # will be reset by max_src_len / max_tgt_len
+  context_length: 128
