@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from dataclasses import replace
 
 from xlstm import (
     xLSTMBlockStack,
@@ -13,8 +14,8 @@ from xlstm import (
 class XlstmSeq2Seq(nn.Module):
     """
     simplified xLSTM encoder-decoder: 
-      - Encoder: xLSTMBlockStack (mLSTM-only)
-      - Decoder: xLSTMBlockStack (mLSTM-only)
+      - Encoder: xLSTMBlockStack (configurable)
+      - Decoder: xLSTMBlockStack (configurable)
       - Cross-attention: torch.nn.MultiheadAttention
     """
 
@@ -28,44 +29,62 @@ class XlstmSeq2Seq(nn.Module):
         max_src_len: int = 128,
         max_tgt_len: int = 128,
         pad_id: int = 0,
+        enc_cfg: xLSTMBlockStackConfig | None = None,  # NEW
+        dec_cfg: xLSTMBlockStackConfig | None = None,  # NEW
     ):
         super().__init__()
         self.vocab_size = vocab_size
-        self.embedding_dim = embedding_dim
         self.pad_id = pad_id
 
-        # A shared embedding is also possible，here seperate for src/tgt differences
+        # If enc_cfg / dec_cfg are passed，use embedding_dim from config，
+        # elsewise use default embedding_dim value
+        if enc_cfg is not None:
+            embedding_dim = enc_cfg.embedding_dim
+        elif dec_cfg is not None:
+            embedding_dim = dec_cfg.embedding_dim
+        self.embedding_dim = embedding_dim
+
+        # A shared embedding is also possible, here seperate for src/tgt differences
         self.src_embed = nn.Embedding(vocab_size, embedding_dim, padding_idx=pad_id)
         self.tgt_embed = nn.Embedding(vocab_size, embedding_dim, padding_idx=pad_id)
 
-        # Encoder: xLSTMBlockStack
-        enc_cfg = xLSTMBlockStackConfig(
-            mlstm_block=mLSTMBlockConfig(
-                mlstm=mLSTMLayerConfig(
-                    conv1d_kernel_size=4,
-                    qkv_proj_blocksize=4,
-                    num_heads=num_heads,
-                )
-            ),
-            context_length=max_src_len,
-            num_blocks=num_blocks_enc,
-            embedding_dim=embedding_dim,
-        )
+        # ----- Encoder config -----
+        if enc_cfg is None:
+            enc_cfg = xLSTMBlockStackConfig(
+                mlstm_block=mLSTMBlockConfig(
+                    mlstm=mLSTMLayerConfig(
+                        conv1d_kernel_size=4,
+                        qkv_proj_blocksize=4,
+                        num_heads=num_heads,
+                    )
+                ),
+                context_length=max_src_len,
+                num_blocks=num_blocks_enc,
+                embedding_dim=embedding_dim,
+            )
+        else:
+            # To ensure context_lengthis same as actual max-length from src
+            enc_cfg = replace(enc_cfg, context_length=max_src_len)
+
         self.encoder = xLSTMBlockStack(enc_cfg)
 
-        # Decoder: xLSTMBlockStack
-        dec_cfg = xLSTMBlockStackConfig(
-            mlstm_block=mLSTMBlockConfig(
-                mlstm=mLSTMLayerConfig(
-                    conv1d_kernel_size=4,
-                    qkv_proj_blocksize=4,
-                    num_heads=num_heads,
-                )
-            ),
-            context_length=max_tgt_len,
-            num_blocks=num_blocks_dec,
-            embedding_dim=embedding_dim,
-        )
+        # ----- Decoder config -----
+        if dec_cfg is None:
+            dec_cfg = xLSTMBlockStackConfig(
+                mlstm_block=mLSTMBlockConfig(
+                    mlstm=mLSTMLayerConfig(
+                        conv1d_kernel_size=4,
+                        qkv_proj_blocksize=4,
+                        num_heads=num_heads,
+                    )
+                ),
+                context_length=max_tgt_len,
+                num_blocks=num_blocks_dec,
+                embedding_dim=embedding_dim,
+            )
+        else:
+            dec_cfg = replace(dec_cfg, context_length=max_tgt_len)
+
         self.decoder = xLSTMBlockStack(dec_cfg)
 
         # Cross-attention: decoder hidden attends encoder outputs

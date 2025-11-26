@@ -8,6 +8,13 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from sacrebleu import corpus_bleu
 
+import argparse
+from dataclasses import replace
+from omegaconf import OmegaConf
+from dacite import from_dict
+from dacite import Config as DaciteConfig
+from xlstm import xLSTMBlockStackConfig
+
 from src.iwslt17_data import (
     create_iwslt17_dataloaders,
     set_seed,
@@ -15,7 +22,23 @@ from src.iwslt17_data import (
 from src.xlstm_seq2seq import XlstmSeq2Seq
 
 
-def train_iwslt17_xlstm():
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to xLSTM yaml config, e.g. config/iwslt17_xlstm10.yaml",
+    )
+    parser.add_argument(
+        "--variant",
+        type=str,
+        default="10",
+        help="Just for logging: 01 / 10 / 11",
+    )
+    return parser.parse_args()
+
+def train_iwslt17_xlstm(args):
     set_seed(1337)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -44,16 +67,46 @@ def train_iwslt17_xlstm():
     bos_id = sp.bos_id()
     eos_id = sp.eos_id()
 
+    # ---- model config from yaml ----
+    if args.config is not None:
+        cfg = OmegaConf.load(args.config)
+        model_cfg_dict = OmegaConf.to_container(cfg.model, resolve=True)
+
+        base_stack_cfg = from_dict(
+            data_class=xLSTMBlockStackConfig,
+            data=model_cfg_dict,
+            config=DaciteConfig(strict=True),
+        )
+
+        # encoder / decoder share stack config，but uses different context_length
+        enc_cfg = replace(base_stack_cfg, context_length=max_src_len)
+        dec_cfg = replace(base_stack_cfg, context_length=max_tgt_len)
+
+        embedding_dim = base_stack_cfg.embedding_dim
+        num_blocks_enc = base_stack_cfg.num_blocks
+        num_blocks_dec = base_stack_cfg.num_blocks
+        num_heads = base_stack_cfg.mlstm_block.mlstm.num_heads
+    else:
+        # If no yaml config is passed, then do default mLSTM-only
+        enc_cfg = None
+        dec_cfg = None
+        embedding_dim = 256
+        num_blocks_enc = 4
+        num_blocks_dec = 4
+        num_heads = 4
+
     # ---- model ----
     model = XlstmSeq2Seq(
         vocab_size=vocab_size,
-        embedding_dim=256,
-        num_heads=4,
-        num_blocks_enc=4,
-        num_blocks_dec=4,
+        embedding_dim=embedding_dim,
+        num_heads=num_heads,
+        num_blocks_enc=num_blocks_enc,
+        num_blocks_dec=num_blocks_dec,
         max_src_len=max_src_len,
         max_tgt_len=max_tgt_len,
         pad_id=pad_id,
+        enc_cfg=enc_cfg, 
+        dec_cfg=dec_cfg, 
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters())
@@ -66,11 +119,11 @@ def train_iwslt17_xlstm():
         optimizer, mode="min", factor=0.5, patience=1, verbose=True
     )
 
-    run_dir = f"runs/iwslt17_xlstm_{time.strftime('%Y%m%d-%H%M%S')}"
+    run_dir = f"runs/iwslt17_xlstm_{args.variant}_{time.strftime('%Y%m%d-%H%M%S')}"
     writer = SummaryWriter(run_dir)
 
     os.makedirs("checkpoints", exist_ok=True)
-    ckpt_path = os.path.join("checkpoints", "xlstm_iwslt17_en_zh.pt")
+    ckpt_path = os.path.join("checkpoints", f"xlstm_iwslt17_en_zh_{args.variant}.pt")
 
     best_val_loss = float("inf")
     epochs_no_improve = 0
@@ -213,4 +266,5 @@ def train_iwslt17_xlstm():
 
 
 if __name__ == "__main__":
-    train_iwslt17_xlstm()
+    args = parse_args()
+    train_iwslt17_xlstm(args)
