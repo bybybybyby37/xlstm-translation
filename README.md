@@ -3,11 +3,8 @@
 ## 1. Environment setup
 
 ```
-conda create -n xlstm python=3.10 -y
-conda activate xlstm
-
-# Can be adjusted based on your cuda version
-pip install torch==2.2.2+cu118 torchvision==0.17.2+cu118 torchaudio==2.2.2+cu118 --index-url https://download.pytorch.org/whl/cu118 
+conda env create -n xlstm-translation -f environment_pt240cu124.yaml
+conda activate xlstm-translation
 
 pip install -r requirements.txt
 ```
@@ -15,7 +12,7 @@ pip install -r requirements.txt
 ## 2. Test Run
 Firstly activate the conda environment
 ```
-conda activate xlstm
+conda activate xlstm-translation
 ```
 Then run the training script (you can modify the hyperparameters)
 
