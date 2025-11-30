@@ -152,7 +152,7 @@ def create_iwslt17_dataloaders(
     max_src_len: int = 128,
     max_tgt_len: int = 128,
     batch_size: int = 32,
-    num_workers: int = 0,  # Windows → 0 most safe
+    num_workers: int = 2,
 ):
     """
     return (sp, train_loader, val_loader, test_loader)

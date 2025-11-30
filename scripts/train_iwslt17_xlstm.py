@@ -61,7 +61,7 @@ def train_iwslt17_xlstm(args):
         max_src_len=max_src_len,
         max_tgt_len=max_tgt_len,
         batch_size=batch_size,
-        num_workers=0,  # Windows → 0
+        num_workers=2,
     )
     pad_id = sp.pad_id()
     bos_id = sp.bos_id()
