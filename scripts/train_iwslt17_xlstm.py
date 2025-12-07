@@ -39,21 +39,31 @@ def parse_args():
     return parser.parse_args()
 
 def train_iwslt17_xlstm(args):
-    set_seed(1337)
+    # ----- load config -----
+    cfg = OmegaConf.load(args.config)
+
+    training_cfg = cfg.training
+    dataset_cfg = cfg.dataset
+    model_cfg = cfg.model
+
+    # ----- seed -----
+    set_seed(int(training_cfg.seed))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Device:", device)
 
-    # ---- hyperparameters ----
-    vocab_size = 8000
-    max_src_len = 128
-    max_tgt_len = 128
-    batch_size = 16
-    num_epochs = 3
-    lr = 2e-4
-    weight_decay = 0.01
-    grad_clip = 1.0
-    patience_epochs = 3
+    # ----- hyperparameters from yaml -----
+    vocab_size = int(dataset_cfg.vocab_size)
+    max_src_len = int(dataset_cfg.max_src_len)
+    max_tgt_len = int(dataset_cfg.max_tgt_len)
+
+    batch_size = int(training_cfg.batch_size)
+    num_epochs = int(training_cfg.num_epochs)
+    lr = float(training_cfg.lr)
+    weight_decay = float(training_cfg.weight_decay)
+    grad_clip = float(training_cfg.grad_clip)
+    patience_epochs = int(training_cfg.patience_epochs)
+    num_workers = int(training_cfg.num_workers)
 
     # ---- data & dataloader ----
     sp, train_loader, val_loader, test_loader = create_iwslt17_dataloaders(
@@ -61,52 +71,34 @@ def train_iwslt17_xlstm(args):
         max_src_len=max_src_len,
         max_tgt_len=max_tgt_len,
         batch_size=batch_size,
-        num_workers=2,
+        num_workers=num_workers,
     )
     pad_id = sp.pad_id()
     bos_id = sp.bos_id()
     eos_id = sp.eos_id()
 
-    # ---- model config from yaml ----
-    if args.config is not None:
-        cfg = OmegaConf.load(args.config)
-        model_cfg_dict = OmegaConf.to_container(cfg.model, resolve=True)
+    # ---- xLSTM block stack config from yaml ----
+    model_cfg_dict = OmegaConf.to_container(model_cfg, resolve=True)
 
-        base_stack_cfg = from_dict(
-            data_class=xLSTMBlockStackConfig,
-            data=model_cfg_dict,
-            config=DaciteConfig(strict=True),
-        )
+    base_stack_cfg = from_dict(
+        data_class=xLSTMBlockStackConfig,
+        data=model_cfg_dict,
+        config=DaciteConfig(strict=True),
+    )
 
-        # encoder / decoder share stack config，but uses different context_length
-        enc_cfg = replace(base_stack_cfg, context_length=max_src_len)
-        dec_cfg = replace(base_stack_cfg, context_length=max_tgt_len)
-
-        embedding_dim = base_stack_cfg.embedding_dim
-        num_blocks_enc = base_stack_cfg.num_blocks
-        num_blocks_dec = base_stack_cfg.num_blocks
-        num_heads = base_stack_cfg.mlstm_block.mlstm.num_heads
-    else:
-        # If no yaml config is passed, then do default mLSTM-only
-        enc_cfg = None
-        dec_cfg = None
-        embedding_dim = 256
-        num_blocks_enc = 4
-        num_blocks_dec = 4
-        num_heads = 4
+    # encoder / decoder share the same block config, 
+    # but can be with different context_length (src vs tgt)
+    enc_cfg = replace(base_stack_cfg, context_length=max_src_len)
+    dec_cfg = replace(base_stack_cfg, context_length=max_tgt_len)
 
     # ---- model ----
     model = XlstmSeq2Seq(
         vocab_size=vocab_size,
-        embedding_dim=embedding_dim,
-        num_heads=num_heads,
-        num_blocks_enc=num_blocks_enc,
-        num_blocks_dec=num_blocks_dec,
         max_src_len=max_src_len,
         max_tgt_len=max_tgt_len,
         pad_id=pad_id,
-        enc_cfg=enc_cfg, 
-        dec_cfg=dec_cfg, 
+        enc_cfg=enc_cfg,
+        dec_cfg=dec_cfg,
     ).to(device)
 
     n_params = sum(p.numel() for p in model.parameters())
