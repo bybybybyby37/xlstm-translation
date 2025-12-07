@@ -1,4 +1,20 @@
 # config/iwslt17_xlstm01.yaml
+
+training:
+  seed: 1337
+  batch_size: 16
+  num_epochs: 3
+  lr: 0.0002
+  weight_decay: 0.01
+  grad_clip: 1.0
+  patience_epochs: 3
+  num_workers: 4
+
+dataset:
+  vocab_size: 8000
+  max_src_len: 128
+  max_tgt_len: 128
+
 model:
   num_blocks: 4
   embedding_dim: 256
