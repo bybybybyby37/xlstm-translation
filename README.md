@@ -18,13 +18,13 @@ Then run the training script (you can modify the hyperparameters)
 
 ```
 # 1:0 Variant（mLSTM-only）
-python -m scripts.train_iwslt17_xlstm --config config/iwslt17_xlstm10.yaml --variant 10
+python -m scripts.train_iwslt17_xlstm --config config/iwslt17_xlstm10.yaml --variant 10 --eval_split test
 
 # 0:1 Variant（sLSTM-only）
-python -m scripts.train_iwslt17_xlstm --config config/iwslt17_xlstm01.yaml --variant 01
+python -m scripts.train_iwslt17_xlstm --config config/iwslt17_xlstm01.yaml --variant 01 --eval_split test
 
 # 1:1 Varivant（mLSTM + sLSTM）
-python -m scripts.train_iwslt17_xlstm --config config/iwslt17_xlstm11.yaml --variant 11
+python -m scripts.train_iwslt17_xlstm --config config/iwslt17_xlstm11.yaml --variant 11 --eval_split test
 ```
 
 ## Citation
