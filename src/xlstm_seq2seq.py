@@ -185,3 +185,56 @@ class XlstmSeq2Seq(nn.Module):
                 break
 
         return tgt_ids
+    
+    def beam_decode(
+        self,
+        enc_out,
+        src_mask,
+        bos_id: int,
+        eos_id: int,
+        max_len: int = 128,
+        beam_size: int = 4,
+        len_penalty: float = 0.6,
+    ):
+        """
+        Beam search decoding (batch=1).
+        Returns: [1, L] token ids
+        """
+        device = enc_out.device
+        assert enc_out.size(0) == 1, "beam_decode only supports batch_size=1"
+
+        # beams: list of (token_ids_tensor[1,T], logprob_float, ended_bool)
+        beams = [(torch.tensor([[bos_id]], device=device, dtype=torch.long), 0.0, False)]
+
+        for _ in range(max_len):
+            new_beams = []
+            for seq, score, ended in beams:
+                if ended:
+                    new_beams.append((seq, score, True))
+                    continue
+
+                logits = self.decode_step(enc_out, src_mask, seq)         # [1,T,V]
+                logp = torch.log_softmax(logits[:, -1, :], dim=-1)        # [1,V]
+                topk_logp, topk_ids = torch.topk(logp, k=beam_size, dim=-1)
+
+                for k in range(beam_size):
+                    next_id = topk_ids[0, k].view(1, 1)
+                    next_seq = torch.cat([seq, next_id], dim=1)
+                    next_score = score + float(topk_logp[0, k].item())
+                    next_ended = (int(next_id.item()) == eos_id)
+                    new_beams.append((next_seq, next_score, next_ended))
+
+            # length penalty ranking
+            def norm_score(seq, score):
+                L = seq.size(1)
+                lp = ((5 + L) / 6) ** len_penalty
+                return score / lp
+
+            new_beams.sort(key=lambda x: norm_score(x[0], x[1]), reverse=True)
+            beams = new_beams[:beam_size]
+
+            if all(e for (_, _, e) in beams):
+                break
+
+        best_seq, best_score, _ = max(beams, key=lambda x: norm_score(x[0], x[1]))
+        return best_seq

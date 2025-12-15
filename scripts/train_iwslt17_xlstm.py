@@ -7,6 +7,8 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from sacrebleu import corpus_bleu
+from sacrebleu.metrics import BLEU
+import sentencepiece as spm
 
 import argparse
 from dataclasses import replace
@@ -36,7 +38,56 @@ def parse_args():
         default="10",
         help="Just for logging: 01 / 10 / 11",
     )
+    parser.add_argument(
+        "--eval_split",
+        type=str,
+        default="test",
+        choices=["val", "test"],
+        help="Which split to use for final BLEU/loss evaluation (use val for tuning, test for final).",
+    )
     return parser.parse_args()
+
+def run_eval(model, dataloader, device, pad_id):
+    model.eval()
+    total_loss = 0.0
+    total_tokens = 0
+
+    with torch.no_grad():
+        for src, tgt_in, tgt_out in dataloader:
+            src = src.to(device)
+            tgt_in = tgt_in.to(device)
+            tgt_out = tgt_out.to(device)
+
+            logits = model(src, tgt_in)  # [B,T,V]
+            B, T, V = logits.shape
+
+            # token-sum loss (more correct than averaging per batch)
+            loss = F.cross_entropy(
+                logits.reshape(B * T, V),
+                tgt_out.reshape(B * T),
+                ignore_index=pad_id,
+                reduction="sum",
+            )
+            total_loss += loss.item()
+            total_tokens += (tgt_out != pad_id).sum().item()
+
+    model.train()
+    return total_loss / max(1, total_tokens)
+
+def clean_piece_ids(ids, bos_id, eos_id, pad_id):
+    """
+    Remove PAD, truncate at EOS, and drop BOS/EOS before SentencePiece decode.
+    """
+    out = []
+    for x in ids:
+        if x == pad_id:
+            continue
+        if x == eos_id:
+            break
+        if x == bos_id:
+            continue
+        out.append(x)
+    return out
 
 def train_iwslt17_xlstm(args):
     # ----- load config -----
@@ -72,6 +123,7 @@ def train_iwslt17_xlstm(args):
         max_tgt_len=max_tgt_len,
         batch_size=batch_size,
         num_workers=num_workers,
+        seed=int(training_cfg.seed),
     )
     pad_id = sp.pad_id()
     bos_id = sp.bos_id()
@@ -121,26 +173,6 @@ def train_iwslt17_xlstm(args):
     epochs_no_improve = 0
     global_step = 0
 
-    def run_eval(dataloader):
-        model.eval()
-        losses = []
-        with torch.no_grad():
-            for src, tgt_in, tgt_out in dataloader:
-                src = src.to(device)
-                tgt_in = tgt_in.to(device)
-                tgt_out = tgt_out.to(device)
-
-                logits = model(src, tgt_in)  # [B,T,V]
-                B, T, V = logits.shape
-                loss = F.cross_entropy(
-                    logits.reshape(B * T, V),
-                    tgt_out.reshape(B * T),
-                    ignore_index=pad_id,
-                )
-                losses.append(loss.item())
-        model.train()
-        return sum(losses) / len(losses)
-
     print("Start training...")
     for epoch in range(1, num_epochs + 1):
         model.train()
@@ -177,7 +209,7 @@ def train_iwslt17_xlstm(args):
             progress.set_postfix(loss=f"{loss.item():.4f}")
 
         avg_train = epoch_loss / len(train_loader)
-        val_loss = run_eval(val_loader)
+        val_loss = run_eval(model, val_loader, device, pad_id)
         writer.add_scalar("train/loss_epoch", avg_train, epoch)
         writer.add_scalar("val/loss", val_loss, epoch)
         writer.add_scalar("train/lr", optimizer.param_groups[0]["lr"], epoch)
@@ -209,52 +241,74 @@ def train_iwslt17_xlstm(args):
                 print("Early stopping.")
                 break
 
-    # ---- Cal loss on test dataset + a simply BLEU ----
+    # ---- Evaluate best checkpoint on test set (loss + BLEU) ----
     print("Evaluating best checkpoint on test set...")
     ckpt = torch.load(ckpt_path, map_location=device)
     model.load_state_dict(ckpt["model"])
     model.to(device)
     model.eval()
 
-    def eval_loss(loader):
-        return run_eval(loader)
+    sp_ckpt = spm.SentencePieceProcessor()
+    sp_ckpt.LoadFromSerializedProto(ckpt["sp_model"])
+    sp = sp_ckpt
+    pad_id = sp.pad_id()
+    bos_id = sp.bos_id()
+    eos_id = sp.eos_id()
 
-    test_loss = eval_loss(test_loader)
-    print(f"Test loss: {test_loss:.4f}, ppl={math.exp(test_loss):.2f}")
+    eval_loader = val_loader if args.eval_split == "val" else test_loader
+    eval_loss_value = run_eval(model, eval_loader, device, pad_id)
+    print(f"{args.eval_split.upper()} loss: {eval_loss_value:.4f}, ppl={math.exp(eval_loss_value):.2f}")
 
-    # Use greedy decode to cal BLEU on first N batches on test dataset
-    N = 200
-    refs = []
-    hyps = []
+    # ---- BLEU (sacreBLEU), robust + reproducible ----
+    # IMPORTANT:
+    # 1) Use full test set by default (set N to an int to subsample for quick checks)
+    # 2) Strip PAD and truncate at EOS before decoding
+    # 3) Use sacreBLEU metric with a fixed tokenizer and print its signature
+
+    bleu_metric = BLEU(tokenize="zh")  # standard, reproducible tokenization
+
+    N = None  # None = full test set; set e.g. 200 for quick sanity checks
+
+    refs = []  # list[str]
+    hyps = []  # list[str]
 
     with torch.no_grad():
         count = 0
-        for src, tgt_in, tgt_out in test_loader:
-            # Here simply batch=1 for BLEU
+        for src, tgt_in, tgt_out in eval_loader:
             for i in range(src.size(0)):
                 src_i = src[i : i + 1].to(device)
-                tgt_ids = tgt_in[i : i + 1].to(device)
 
                 enc_out, src_mask = model.encode(src_i)
-                gen_ids = model.greedy_decode(
-                    enc_out, src_mask, bos_id=bos_id, eos_id=eos_id, max_len=max_tgt_len
-                )  # [1, L]
+                gen_ids = model.beam_decode(
+                    enc_out, src_mask,
+                    bos_id=bos_id, eos_id=eos_id,
+                    max_len=max_tgt_len,
+                    beam_size=4,
+                    len_penalty=0.6,
+                )
 
-                # Decode into a string
-                hyp = sp.decode(gen_ids[0].tolist())
-                ref = sp.decode(tgt_out[i].tolist())
+                hyp_ids = clean_piece_ids(gen_ids[0].tolist(), bos_id, eos_id, pad_id)
+                ref_ids = clean_piece_ids(tgt_out[i].tolist(), bos_id, eos_id, pad_id)
+
+                hyp = sp.decode(hyp_ids)
+                ref = sp.decode(ref_ids)
 
                 hyps.append(hyp)
-                refs.append([ref])  # sacrebleu needs list of list
+                refs.append(ref)
 
                 count += 1
-                if count >= N:
+                if (N is not None) and (count >= N):
                     break
-            if count >= N:
+            if (N is not None) and (count >= N):
                 break
 
-    bleu = corpus_bleu(hyps, refs)
-    print(f"Test BLEU on {N} samples: {bleu.score:.2f}")
+    # sacreBLEU expects: hyps: list[str], refs: list[list[str]] (one list per reference set)
+    bleu = bleu_metric.corpus_score(hyps, [refs])
+    print("BLEU signature:", bleu_metric.get_signature())
+    if N is None:
+        print(f"{args.eval_split.upper()} BLEU (full test set): {bleu.score:.2f}")
+    else:
+        print(f"{args.eval_split.upper()} BLEU on {N} samples: {bleu.score:.2f}")
 
 
 if __name__ == "__main__":

@@ -153,11 +153,12 @@ def create_iwslt17_dataloaders(
     max_tgt_len: int = 128,
     batch_size: int = 32,
     num_workers: int = 2,
+    seed: int = 1337,
 ):
     """
     return (sp, train_loader, val_loader, test_loader)
     """
-    set_seed(1337)
+    set_seed(seed)
 
     print("[Data] loading IWSLT2017 en-zh dataset...")
     dataset_dict = load_dataset("IWSLT/iwslt2017", "iwslt2017-en-zh", trust_remote_code=True)
