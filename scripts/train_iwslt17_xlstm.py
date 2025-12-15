@@ -194,7 +194,7 @@ def train_iwslt17_xlstm(args):
             logits = model(src, tgt_in)
             B, T, V = logits.shape
 
-            loss = F.cross_entropy(
+            loss_sum = F.cross_entropy(
                 logits.reshape(B * T, V),
                 tgt_out.reshape(B * T),
                 ignore_index=pad_id,
