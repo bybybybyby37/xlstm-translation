@@ -21,9 +21,9 @@ import pandas as pd
 # Basic configuration
 # ==========================
 
-BASE_CONFIG = "config/iwslt17_xlstm10.yaml"
-VARIANT = "10"
-EXPERIMENT_ROOT = "grid_runs/xlstm10"
+BASE_CONFIG = "config/iwslt17_xlstm11.yaml"
+VARIANT = "11"
+EXPERIMENT_ROOT = "random_runs/xlstm11"
 
 
 # ==========================
@@ -96,7 +96,7 @@ def build_run_name(config_overrides: dict):
 
     suffix = "_".join(suffix_parts)
     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
-    run_name = f"xlstm10_{suffix}_{ts}"
+    run_name = f"xlstm{VARIANT}_{suffix}_{ts}"
     return run_name
 
 
@@ -137,6 +137,7 @@ def run_one(config_overrides: dict):
         cfg_path,
         "--variant",
         VARIANT,
+        "--eval_split val",
     ]
     print("Command:", " ".join(cmd))
 
@@ -289,17 +290,22 @@ def run_random_search(n_trials: int):
     search_space = {
         "training.lr": {
             "type": "loguniform",
+            "low": 3e-4,
+            "high": 1.5e-3,
+        },
+        # "training.batch_size": {
+        #     "type": "choice",
+        #     "values": [16, 32],
+        # },
+        "training.weight_decay":{
+            "type": "loguniform",
             "low": 1e-4,
-            "high": 5e-4,
+            "high": 2e-2,
         },
-        "training.batch_size": {
-            "type": "choice",
-            "values": [16, 32, 64],
-        },
-        "model.num_blocks": {
-            "type": "choice",
-            "values": [4, 6],
-        },
+        # "model.num_blocks": {
+        #     "type": "choice",
+        #     "values": [4, 6],
+        # },
         # "model.embedding_dim": {
         #     "type": "choice",
         #     "values": [256, 384],
