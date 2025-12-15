@@ -176,7 +176,8 @@ def train_iwslt17_xlstm(args):
     print("Start training...")
     for epoch in range(1, num_epochs + 1):
         model.train()
-        epoch_loss = 0.0
+        epoch_loss_sum = 0.0
+        epoch_tokens = 0
         progress = tqdm(
             train_loader,
             desc=f"Epoch {epoch}/{num_epochs}",
@@ -197,18 +198,27 @@ def train_iwslt17_xlstm(args):
                 logits.reshape(B * T, V),
                 tgt_out.reshape(B * T),
                 ignore_index=pad_id,
+                reduction="sum",
             )
 
+            # token count (non-pad)
+            ntok = (tgt_out != pad_id).sum().item()
+
+            # backprop uses normalized loss (so that lr not affected by batch length)
+            loss = loss_sum / max(1, ntok)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
             optimizer.step()
 
             global_step += 1
-            epoch_loss += loss.item()
+            epoch_loss_sum += loss_sum.item()
+            epoch_tokens += ntok
+
+            # step log: token-average
             writer.add_scalar("train/loss_step", loss.item(), global_step)
             progress.set_postfix(loss=f"{loss.item():.4f}")
 
-        avg_train = epoch_loss / len(train_loader)
+        avg_train = epoch_loss_sum / max(1, epoch_tokens)
         val_loss = run_eval(model, val_loader, device, pad_id)
         writer.add_scalar("train/loss_epoch", avg_train, epoch)
         writer.add_scalar("val/loss", val_loss, epoch)
