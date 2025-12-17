@@ -160,7 +160,7 @@ def train_iwslt17_xlstm(args):
         model.parameters(), lr=lr, weight_decay=weight_decay
     )
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.5, patience=1, verbose=True
+        optimizer, mode="min", factor=0.5, patience=2, verbose=True
     )
 
     run_dir = f"runs/iwslt17_xlstm_{args.variant}_{time.strftime('%Y%m%d-%H%M%S')}"
