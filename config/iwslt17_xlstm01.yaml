@@ -3,12 +3,13 @@
 training:
   seed: 1337
   batch_size: 16
-  num_epochs: 3
-  lr: 0.0002
-  weight_decay: 0.01
+  num_epochs: 10
+  lr: 5e-4
+  weight_decay: 1e-3
   grad_clip: 1.0
   patience_epochs: 3
   num_workers: 4
+  min_delta: 0.001
 
 dataset:
   vocab_size: 8000

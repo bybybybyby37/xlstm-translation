@@ -115,6 +115,7 @@ def train_iwslt17_xlstm(args):
     grad_clip = float(training_cfg.grad_clip)
     patience_epochs = int(training_cfg.patience_epochs)
     num_workers = int(training_cfg.num_workers)
+    min_delta = float(training_cfg.get("min_delta", 0.0))
 
     # ---- data & dataloader ----
     sp, train_loader, val_loader, test_loader = create_iwslt17_dataloaders(
@@ -231,7 +232,7 @@ def train_iwslt17_xlstm(args):
 
         scheduler.step(val_loss)
 
-        if val_loss < best_val_loss:
+        if val_loss < best_val_loss - min_delta:
             best_val_loss = val_loss
             epochs_no_improve = 0
             torch.save(
