@@ -27,6 +27,15 @@ python -m scripts.train_iwslt17_xlstm --config config/iwslt17_xlstm01.yaml --var
 python -m scripts.train_iwslt17_xlstm --config config/iwslt17_xlstm11.yaml --variant 11 --eval_split test
 ```
 
+## 3. Iteractive Translation
+For a iteractive translation based on our trained model, run the following command and open http://127.0.0.1:7860 locally.
+```
+python scripts/interactive_translate.py \
+  --config config/iwslt17_xlstm11.yaml \
+  --ckpt checkpoints/xlstm_iwslt17_en_zh_11.pt \
+  --device cuda
+```
+
 ## Citation
 @inproceedings{beck:24xlstm,
   title = {xLSTM: Extended Long Short-Term Memory}, 
