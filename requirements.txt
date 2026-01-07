@@ -11,3 +11,4 @@ tensorboard==2.9.1
 
 # ---- Evaluation ----
 sacrebleu>=2.4
+gradio
