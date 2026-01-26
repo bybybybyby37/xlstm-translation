@@ -1,0 +1,26 @@
+# Inherit everything from your original config to avoid model-config mismatch
+base_config: config/iwslt17_xlstm11.yaml
+
+dataset:
+  # Use your existing SPM to keep vocab/id consistent with the original checkpoint
+  spm_model_path: spm/iwslt17_en_zh_8000.model
+
+  # Synthetic kept pairs (en line, zh line)
+  synthetic_txt_path: data/synth_kept.en_zh.txt
+
+  # Mixing ratio: IWSLT : Synthetic = 10 : 1
+  mix_ratio_iwslt: 10
+  mix_ratio_synth: 1
+
+training:
+  seed: 1337
+
+  # Resume from your original best checkpoint
+  resume_ckpt: checkpoints/xlstm_iwslt17_en_zh_11.pt
+
+  # For continued training, typically use a smaller LR than initial training.
+  lr: 1.0e-4
+
+  num_epochs: 12
+
+  patience_epochs: 3
