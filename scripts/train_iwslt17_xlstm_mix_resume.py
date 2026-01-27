@@ -302,35 +302,35 @@ def train_mix_resume(args):
     eval_loss_value = run_eval(model, eval_loader, device, pad_id)
     print(f"{args.eval_split.upper()} loss: {eval_loss_value:.4f}, ppl={math.exp(eval_loss_value):.2f}")
 
-    bleu_metric = BLEU(tokenize="zh")
-    refs = []
-    hyps = []
+    # bleu_metric = BLEU(tokenize="zh")
+    # refs = []
+    # hyps = []
 
-    with torch.no_grad():
-        for src, tgt_in, tgt_out in eval_loader:
-            for i in range(src.size(0)):
-                src_i = src[i : i + 1].to(device)
-                enc_out, src_mask = model.encode(src_i)
+    # with torch.no_grad():
+    #     for src, tgt_in, tgt_out in eval_loader:
+    #         for i in range(src.size(0)):
+    #             src_i = src[i : i + 1].to(device)
+    #             enc_out, src_mask = model.encode(src_i)
 
-                gen_ids = model.beam_decode(
-                    enc_out,
-                    src_mask,
-                    bos_id=bos_id,
-                    eos_id=eos_id,
-                    max_len=max_tgt_len,
-                    beam_size=4,
-                    len_penalty=0.6,
-                )
+    #             gen_ids = model.beam_decode(
+    #                 enc_out,
+    #                 src_mask,
+    #                 bos_id=bos_id,
+    #                 eos_id=eos_id,
+    #                 max_len=max_tgt_len,
+    #                 beam_size=4,
+    #                 len_penalty=0.6,
+    #             )
 
-                hyp_ids = clean_piece_ids(gen_ids[0].tolist(), bos_id, eos_id, pad_id)
-                ref_ids = clean_piece_ids(tgt_out[i].tolist(), bos_id, eos_id, pad_id)
+    #             hyp_ids = clean_piece_ids(gen_ids[0].tolist(), bos_id, eos_id, pad_id)
+    #             ref_ids = clean_piece_ids(tgt_out[i].tolist(), bos_id, eos_id, pad_id)
 
-                hyps.append(sp_eval.decode(hyp_ids))
-                refs.append(sp_eval.decode(ref_ids))
+    #             hyps.append(sp_eval.decode(hyp_ids))
+    #             refs.append(sp_eval.decode(ref_ids))
 
-    bleu = bleu_metric.corpus_score(hyps, [refs])
-    print("BLEU signature:", bleu_metric.get_signature())
-    print(f"{args.eval_split.upper()} BLEU: {bleu.score:.2f}")
+    # bleu = bleu_metric.corpus_score(hyps, [refs])
+    # print("BLEU signature:", bleu_metric.get_signature())
+    # print(f"{args.eval_split.upper()} BLEU: {bleu.score:.2f}")
 
 
 if __name__ == "__main__":

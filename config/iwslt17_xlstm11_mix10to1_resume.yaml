@@ -19,7 +19,7 @@ training:
   resume_ckpt: checkpoints/xlstm_iwslt17_en_zh_11.pt
 
   # For continued training, typically use a smaller LR than initial training.
-  lr: 1.0e-4
+  lr: 1.0e-5
 
   num_epochs: 12
 
