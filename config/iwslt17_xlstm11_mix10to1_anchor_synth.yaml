@@ -1,0 +1,27 @@
+base_config: config/iwslt17_xlstm11.yaml
+
+dataset:
+  spm_model_path: spm/iwslt17_en_zh_8000.model
+  synthetic_txt_path: data/synth_kept.en_zh.txt
+
+  # anchor on synthetic: use all synth, sample iwslt = ratio * synth
+  mix_ratio_iwslt: 10
+
+training:
+  seed: 1337
+  resume_ckpt: checkpoints/xlstm_iwslt17_en_zh_11.pt
+
+  # start with small lr for post-convergence finetune
+  lr: 3.0e-5
+  num_epochs: 5
+  patience_epochs: 3
+
+  # strongly recommend fewer workers for stability on shared VM; you can raise later
+  num_workers: 0
+
+  # ---- fast validation BLEU for early stop / best ckpt selection ----
+  val_bleu_max_sentences: 500 
+  val_bleu_beam_size: 1           # 1=greedy, fastest
+  val_bleu_max_len: 80 
+  val_bleu_len_penalty: 0.6
+  val_bleu_tokenize: zh           # sacrebleu tokenize
