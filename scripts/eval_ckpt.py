@@ -1,3 +1,10 @@
+'''
+python -m scripts.eval_ckpt \
+  --config config/iwslt17_xlstm11.yaml \
+  --ckpt checkpoints/xlstm_iwslt17_en_zh_11.pt \
+  --split test
+  --max_bleu_samples 1000
+'''
 import argparse
 import math
 import os
